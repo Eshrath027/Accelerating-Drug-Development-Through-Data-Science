@@ -33,7 +33,7 @@ import google
 
 # from src.build_model import OffloadConfig, QuantConfig, build_model
 import openai
-import medlibb.templates.creds as creds
+import drugapp.medlibb.creds.creds as creds
 from django.shortcuts import render, redirect
 from GoogleNews import GoogleNews
 from django.contrib.auth import authenticate, login, logout
