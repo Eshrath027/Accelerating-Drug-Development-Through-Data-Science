@@ -83,16 +83,24 @@
                             <input type="checkbox" checked="checked"/>
                             <div class="control__indicator"></div>
                         </label>
-                        <span class="ml-auto"><a href="#" class="forgot-pass">Forgot Password</a></span>
+                        <span class="ml-auto"><a href="{% url 'register'%}" class="forgot-pass">Register</a></span>
                     </div>
 
                     <input type="submit" value="Log In" class="btn btn-block btn-primary">
                 </form>
+                <br>
+                <div style="color: red;">
+                    {% for message in messages %}
+                    <h6> {{message}}  </h6>
+                    {% endfor %}
+                </div>
             </div>
         </div>
+        
          
     </div>
 </div>
+
 
 <script src="{% static 'loginstatic/js/jquery-3.3.1.min.js' %}"></script>
 <script src="{% static 'loginstatic/js/popper.min.js' %}"></script>

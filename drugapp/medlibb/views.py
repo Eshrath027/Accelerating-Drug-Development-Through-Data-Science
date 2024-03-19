@@ -1,6 +1,10 @@
 import json
 import sys
 import os
+from .models import *
+from django.contrib.auth.models import User, auth
+from django.contrib.auth import login as auth_login
+from django.contrib import messages
 
 # Get the current directory of the Django project
 # BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,9 +37,7 @@ import google
 
 # from src.build_model import OffloadConfig, QuantConfig, build_model
 import openai
-# import drugapp.medlibb.creds.creds as creds
 import medlibb.creds.creds as creds
-
 from django.shortcuts import render, redirect
 from GoogleNews import GoogleNews
 from django.contrib.auth import authenticate, login, logout
@@ -148,8 +150,12 @@ def fetch_latest_news_articles(query, num_articles):
 def news_articles_view(request):
     # query = 'medical articles of brain'
     query = request.GET.get('query', '')
+    # query = f"recent medical articles about {query_param}" if query_param else None
     num_articles = 10
     
+    if query:
+        user_query = UserQuery(query_text=query)
+        user_query.save()
     # Fetch latest news articles based on the query and number of articles
     articles = fetch_latest_news_articles(query, num_articles)
     
@@ -170,32 +176,57 @@ import google.generativeai as genai
 # GOOGLE_API_KEY = 'AIzaSyCQxvCW63o0lvI8c1XCFaMTeNDWFprIGwA'
 genai.configure(api_key=creds.GOOGLE_API_KEY)
 
-# Assuming the GenerativeModel class is instantiated elsewhere in your code
-# and used within the chatbot view function.
-# Ensure you remove the 'api_key' argument from the GenerativeModel constructor.
+
+#original chatbotcode
+# def chatbot(request):
+#     page_name = 'Chatbot'
+#     if request.method == 'POST':
+#         # question = request.POST.get('question')
+#         data = request.body
+#         data = data.decode('utf-8')
+#         data = json.loads(data)
+#         question= data['question']
+        
+#         response = request.POST.get('response')
+    
+#         if question:
+#             try:
+#                 model = genai.GenerativeModel('gemini-pro')
+#                 chat = model.start_chat(history=[])
+#                 response = chat.send_message(question)
+#                 response_text = response.text
+#                 return JsonResponse({'response': response_text})  # Return JSON response
+#             except Exception as e:
+#                 # Handle any errors and return an error response
+#                 return JsonResponse({'error': str(e)}, status=500)
+#     # return render(request, 'chatbot.html')
+#     return render(request, 'chatbot.html', {'page_name': page_name})
 
 def chatbot(request):
     page_name = 'Chatbot'
     if request.method == 'POST':
-        # question = request.POST.get('question')
-        data = request.body
-        data = data.decode('utf-8')
-        data = json.loads(data)
-        question= data['question']
-    
-        if question:
-            try:
-                model = genai.GenerativeModel('gemini-pro')
-                chat = model.start_chat(history=[])
-                response = chat.send_message(question)
-                response_text = response.text
-                return JsonResponse({'response': response_text})  # Return JSON response
-            except Exception as e:
-                # Handle any errors and return an error response
-                return JsonResponse({'error': str(e)}, status=500)
-    # return render(request, 'chatbot.html')
+        try:
+            # Extract data from the request
+            data = json.loads(request.body.decode('utf-8'))
+            question = data.get('question')
+            
+            # Start chat and get response
+            model = genai.GenerativeModel('gemini-pro')
+            chat = model.start_chat(history=[])
+            response = chat.send_message(question)
+            response_text = response.text
+            # response_text = response.text.replace('*', '') 
+            
+            # Save the chat conversation to the database
+            if question:
+                user_chat = UserChat(question=question, response=response_text)
+                user_chat.save()
+                
+            return JsonResponse({'response': response_text})  # Return JSON response
+        except Exception as e:
+            # Handle any errors and return an error response
+            return JsonResponse({'error': str(e)}, status=500)
     return render(request, 'chatbot.html', {'page_name': page_name})
-
 
 
 
@@ -241,11 +272,16 @@ def ddi(request):
         drug1 = request.POST.get('drug1')
         drug2 = request.POST.get('drug2')
         text = f"Can {drug1} and {drug2} be taken together?"
+        
+        if drug1 and drug2:
+            drug_interaction = DrugInteraction(drug1=drug1, drug2=drug2)
+            drug_interaction.save()
 
         model = genai.GenerativeModel('gemini-pro')
         chat = model.start_chat(history=[])
         response = chat.send_message(text)
         response_text = response.text  # Assign response text if there's a response
+        response_text = response.text.replace('*', '') 
 
     return render(request, 'ddi.html', {'drug1': drug1, 'drug2': drug2, 'response_text': response_text})
 
@@ -335,22 +371,74 @@ def analysis(request):
 
 
 
+# def login_user(request):
+#     if request.method== "POST":
+#         username=request.POST['username']
+#         password=request.POST['password']
+#         user=authenticate(request,username=username,password=password)
+#         if user is not None:
+#             login(request,user)
+#             messages.success(request,("You have been logged in"))
+#             return redirect('index')
+#         else:
+#             messages.error(request,("Invalid username or password"))
+#             return redirect('login')
+#     else:
+#         return render(request, 'login.html', {})
+
 def login_user(request):
-    if request.method== "POST":
-        username=request.POST['username']
-        password=request.POST['password']
-        user=authenticate(request,username=username,password=password)
+    if request.method== 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+
+        user = auth.authenticate(username=username,password=password)
+
         if user is not None:
-            login(request,user)
-            messages.success(request,("You have been logged in"))
-            return redirect('index')
+            auth.login(request, user)
+            return redirect("/")
         else:
-            messages.error(request,("Invalid username or password"))
+            messages.info(request,'Invalid credentials')
             return redirect('login')
+
     else:
-        return render(request, 'login.html', {})
+        return render(request,'login.html')    
+
+    
+    
+def register(request):
+
+    if request.method == 'POST':
+        first_name = request.POST['first_name']
+        last_name = request.POST['last_name']
+        username = request.POST['username']
+        password1 = request.POST['password1']
+        password2 = request.POST['password2']
+        email = request.POST['email']
+
+        if password1==password2:
+            if User.objects.filter(username=username).exists():
+                messages.info(request,'Username Taken')
+                return redirect('register')
+            elif User.objects.filter(email=email).exists():
+                messages.info(request,'Email Taken')
+                return redirect('register')
+            else:   
+                user = User.objects.create_user(username=username, password=password1, email=email,first_name=first_name,last_name=last_name)
+                user.save();
+                print('user created')
+                return redirect('login')
+
+        else:
+            messages.info(request,'password not matching..')    
+            return redirect('register')
+        return redirect('/')
+        
+    else:
+        return render(request,'register.html')
 
 def logout_user(request):
-    logout(request)
-    messages.success(request,("You have been logged out"))
-    return redirect('index')
+    # logout(request)
+    # messages.success(request,("You have been logged out"))
+    # return redirect('index')
+    auth.logout(request)
+    return redirect('/')  
