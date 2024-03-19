@@ -125,8 +125,7 @@ def summarize_url_content(url, num_sentences=3):
 
 def fetch_latest_news_articles(query, num_articles):
     try:
-        # api_url = 'https://newsapi.org/v2/everything'
-        # api_key = 'bbdd615a0ac54084bf98c8bafb730e8e'
+        
         full_api_url = f"{creds.api_url}?apiKey={creds.api_key}"
         
         # Make a GET request to the API endpoint
@@ -173,7 +172,7 @@ import google.generativeai as genai
 
 
 # Configure the API key
-# GOOGLE_API_KEY = 'AIzaSyCQxvCW63o0lvI8c1XCFaMTeNDWFprIGwA'
+
 genai.configure(api_key=creds.GOOGLE_API_KEY)
 
 
